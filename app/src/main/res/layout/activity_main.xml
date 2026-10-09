@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="محمّل يوتيوب"
+            android:text="محمّل الفيديو"
             android:textSize="26sp"
             android:textStyle="bold" />
 
@@ -26,53 +26,81 @@
             android:inputType="textUri"
             android:maxLines="3" />
 
-        <RadioGroup
-            android:id="@+id/formatGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="vertical">
-
-            <RadioButton
-                android:id="@+id/rb1080"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
-                android:text="فيديو 1080p (MP4)" />
-
-            <RadioButton
-                android:id="@+id/rb720"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="فيديو 720p (MP4)" />
-
-            <RadioButton
-                android:id="@+id/rbMp3"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="صوت فقط (MP3)" />
-        </RadioGroup>
-
-        <Button
-            android:id="@+id/downloadBtn"
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="ابدأ التحميل" />
+            android:text="النوع" />
+
+        <Spinner
+            android:id="@+id/typeSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="الجودة" />
+
+        <Spinner
+            android:id="@+id/qualitySpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/primaryBtn"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:text="ابدأ التحميل" />
+
+            <Button
+                android:id="@+id/cancelBtn"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:enabled="false"
+                android:text="إلغاء" />
+        </LinearLayout>
 
         <ProgressBar
             android:id="@+id/progress"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="20dp"
             android:max="100" />
+
+        <TextView
+            android:id="@+id/percentText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="0%"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:text="جاهز" />
+
+        <Button
+            android:id="@+id/historyBtn"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="📂 التحميلات المكتملة" />
     </LinearLayout>
 </ScrollView>

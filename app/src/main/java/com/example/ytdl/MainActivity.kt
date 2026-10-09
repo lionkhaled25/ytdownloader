@@ -1,52 +1,113 @@
 package com.example.ytdl
 
-import android.content.ContentValues
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.MediaStore
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
-import android.widget.RadioGroup
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.yausername.youtubedl_android.YoutubeDL
-import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var urlInput: EditText
-    private lateinit var formatGroup: RadioGroup
-    private lateinit var downloadBtn: Button
+    private lateinit var typeSpinner: Spinner
+    private lateinit var qualitySpinner: Spinner
+    private lateinit var primaryBtn: Button
+    private lateinit var cancelBtn: Button
+    private lateinit var historyBtn: Button
     private lateinit var progress: ProgressBar
+    private lateinit var percentText: TextView
     private lateinit var status: TextView
+
+    private val notifPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private val types = listOf("فيديو (MP4)", "صوت فقط")
+    private val videoLabels = listOf("1080p (Full HD)", "720p (HD)", "480p", "360p (حجم صغير)")
+    private val audioLabels = listOf(
+        "MP3 - 320 kbps",
+        "MP3 - 192 kbps",
+        "MP3 - 128 kbps (حجم أصغر)",
+        "M4A - الجودة الأصلية (بدون إعادة ضغط)"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         urlInput = findViewById(R.id.urlInput)
-        formatGroup = findViewById(R.id.formatGroup)
-        downloadBtn = findViewById(R.id.downloadBtn)
+        typeSpinner = findViewById(R.id.typeSpinner)
+        qualitySpinner = findViewById(R.id.qualitySpinner)
+        primaryBtn = findViewById(R.id.primaryBtn)
+        cancelBtn = findViewById(R.id.cancelBtn)
+        historyBtn = findViewById(R.id.historyBtn)
         progress = findViewById(R.id.progress)
+        percentText = findViewById(R.id.percentText)
         status = findViewById(R.id.status)
 
-        // لو الرابط جاي من Share
-        if (intent?.action == android.content.Intent.ACTION_SEND) {
-            intent.getStringExtra(android.content.Intent.EXTRA_TEXT)?.let { urlInput.setText(it) }
+        if (intent?.action == Intent.ACTION_SEND) {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.let { urlInput.setText(it) }
         }
 
-        downloadBtn.setOnClickListener { startDownload() }
+        // إذن الإشعارات (أندرويد 13+)
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        typeSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        setQualityList(true)
+        typeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                setQualityList(pos == 0)
+            }
+            override fun onNothingSelected(p: AdapterView<*>?) {}
+        }
+
+        primaryBtn.setOnClickListener {
+            when (Downloader.state.value.phase) {
+                Downloader.Phase.IDLE -> startNew()
+                Downloader.Phase.DOWNLOADING -> Downloader.pause()
+                Downloader.Phase.PAUSED -> Downloader.resume()
+            }
+        }
+        cancelBtn.setOnClickListener { Downloader.cancel() }
+        historyBtn.setOnClickListener { startActivity(Intent(this, HistoryActivity::class.java)) }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                Downloader.state.collect { render(it) }
+            }
+        }
+
         updateEngine()
     }
 
-    /** تحديث yt-dlp تلقائيًا (يوتيوب بيغيّر حاجات كتير فلازم يتحدّث) */
+    private fun setQualityList(video: Boolean) {
+        val list = if (video) videoLabels else audioLabels
+        qualitySpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, list)
+    }
+
     private fun updateEngine() {
         lifecycleScope.launch {
             try {
@@ -55,95 +116,48 @@ class MainActivity : AppCompatActivity() {
                         this@MainActivity, YoutubeDL.UpdateChannel.STABLE
                     )
                 }
-            } catch (_: Exception) { /* مفيش نت أو فشل التحديث، عادي */ }
+            } catch (_: Exception) { }
         }
     }
 
-    private fun startDownload() {
-        val url = urlInput.text.toString().trim()
-        if (url.isEmpty()) {
-            Toast.makeText(this, "الصق الرابط الأول", Toast.LENGTH_SHORT).show()
+    private fun startNew() {
+        val url = Regex("https?://\\S+").find(urlInput.text.toString())?.value
+        if (url == null) {
+            Toast.makeText(this, "الصق رابط صحيح الأول", Toast.LENGTH_SHORT).show()
             return
         }
-        val checked = formatGroup.checkedRadioButtonId
+        Downloader.start(url, typeSpinner.selectedItemPosition == 0, qualitySpinner.selectedItemPosition)
+    }
 
-        lifecycleScope.launch {
-            setBusy(true)
-            status.text = "جاري التحضير..."
-            try {
-                val tmpDir = File(cacheDir, "dl").apply { deleteRecursively(); mkdirs() }
+    private fun render(s: Downloader.UiState) {
+        progress.progress = s.percent
+        percentText.text =
+            if (s.phase == Downloader.Phase.DOWNLOADING && s.eta.isNotEmpty())
+                "${s.percent}%  •  باقي ${s.eta}"
+            else "${s.percent}%"
+        status.text = s.status
 
-                withContext(Dispatchers.IO) {
-                    val req = YoutubeDLRequest(url)
-                    req.addOption("--no-playlist")
-                    req.addOption("-o", tmpDir.absolutePath + "/%(title).80s.%(ext)s")
+        val idle = s.phase == Downloader.Phase.IDLE
+        urlInput.isEnabled = idle
+        typeSpinner.isEnabled = idle
+        qualitySpinner.isEnabled = idle
 
-                    when (checked) {
-                        R.id.rbMp3 -> {
-                            req.addOption("-x")
-                            req.addOption("--audio-format", "mp3")
-                            req.addOption("--audio-quality", "0")
-                        }
-                        else -> {
-                            val h = if (checked == R.id.rb720) 720 else 1080
-                            req.addOption(
-                                "-f",
-                                "bv*[height<=$h][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=$h]+ba/b[height<=$h]"
-                            )
-                            req.addOption("--merge-output-format", "mp4")
-                        }
-                    }
-
-                    YoutubeDL.getInstance().execute(req, "ytdl-task") { p, _, line ->
-                        runOnUiThread {
-                            if (p >= 0) progress.progress = p.toInt()
-                            status.text = line.take(120)
-                        }
-                    }
-                }
-
-                val file = tmpDir.listFiles()
-                    ?.filter { it.isFile && !it.name.endsWith(".part") }
-                    ?.maxByOrNull { it.lastModified() }
-                    ?: throw IllegalStateException("مفيش ملف ناتج")
-
-                status.text = "جاري الحفظ في Downloads..."
-                withContext(Dispatchers.IO) { saveToDownloads(file) }
-                file.delete()
-
-                progress.progress = 100
-                status.text = "تم ✅  الملف في: Downloads/YTDL/${file.name}"
-            } catch (e: Exception) {
-                status.text = "حصل خطأ: ${e.message?.take(200)}"
-            } finally {
-                setBusy(false)
+        when (s.phase) {
+            Downloader.Phase.IDLE -> {
+                primaryBtn.text = "ابدأ التحميل"
+                primaryBtn.isEnabled = true
+                cancelBtn.isEnabled = false
+            }
+            Downloader.Phase.DOWNLOADING -> {
+                primaryBtn.text = "⏸ إيقاف مؤقت"
+                primaryBtn.isEnabled = !s.stopping
+                cancelBtn.isEnabled = !s.stopping
+            }
+            Downloader.Phase.PAUSED -> {
+                primaryBtn.text = "▶ استكمال"
+                primaryBtn.isEnabled = true
+                cancelBtn.isEnabled = true
             }
         }
-    }
-
-    private fun saveToDownloads(file: File) {
-        val mime = when (file.extension.lowercase()) {
-            "mp3" -> "audio/mpeg"
-            "m4a" -> "audio/mp4"
-            "mp4" -> "video/mp4"
-            "webm" -> "video/webm"
-            "mkv" -> "video/x-matroska"
-            else -> "application/octet-stream"
-        }
-        val values = ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME, file.name)
-            put(MediaStore.Downloads.MIME_TYPE, mime)
-            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YTDL")
-        }
-        val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: throw IllegalStateException("فشل إنشاء الملف")
-        contentResolver.openOutputStream(uri)!!.use { out ->
-            file.inputStream().use { it.copyTo(out) }
-        }
-    }
-
-    private fun setBusy(busy: Boolean) {
-        downloadBtn.isEnabled = !busy
-        if (busy) progress.progress = 0
     }
 }
