@@ -9,7 +9,8 @@ data class HistoryItem(
     val uri: String,
     val mime: String,
     val time: Long,
-    val isVideo: Boolean
+    val isVideo: Boolean,
+    val size: Long = 0
 )
 
 object History {
@@ -27,7 +28,7 @@ object History {
                 out.add(
                     HistoryItem(
                         o.getString("name"), o.getString("uri"), o.getString("mime"),
-                        o.getLong("time"), o.getBoolean("video")
+                        o.getLong("time"), o.getBoolean("video"), o.optLong("size", 0)
                     )
                 )
             }
@@ -41,7 +42,7 @@ object History {
             arr.put(
                 JSONObject()
                     .put("name", it.name).put("uri", it.uri).put("mime", it.mime)
-                    .put("time", it.time).put("video", it.isVideo)
+                    .put("time", it.time).put("video", it.isVideo).put("size", it.size)
             )
         }
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().putString(KEY, arr.toString()).apply()
@@ -58,3 +59,7 @@ object History {
         save(ctx, load(ctx).filter { it.uri != uri })
     }
 }
+
+fun formatSize(bytes: Long): String =
+    if (bytes >= 1L shl 30) "%.2f GB".format(java.util.Locale.US, bytes / 1073741824.0)
+    else "%.1f MB".format(java.util.Locale.US, bytes / 1048576.0)

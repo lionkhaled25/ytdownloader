@@ -30,6 +30,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var urlInput: EditText
     private lateinit var typeSpinner: Spinner
     private lateinit var qualitySpinner: Spinner
+    private lateinit var codecSpinner: Spinner
+    private lateinit var codecGroup: View
     private lateinit var primaryBtn: Button
     private lateinit var cancelBtn: Button
     private lateinit var historyBtn: Button
@@ -41,7 +43,12 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     private val types = listOf("فيديو (MP4)", "صوت فقط")
-    private val videoLabels = listOf("1080p (Full HD)", "720p (HD)", "480p", "360p (حجم صغير)")
+    private val videoLabels = listOf("1440p (2K)", "1080p (Full HD)", "720p (HD)", "480p", "360p (حجم صغير)")
+    private val codecLabels = listOf(
+        "VP9 — حجم صغير وتوافق جيد (الافتراضي)",
+        "AV1 — الأصغر حجمًا (ممكن يتقطّع على موبايلات ضعيفة)",
+        "H.264 (MP4) — أقصى توافق، حجم أكبر"
+    )
     private val audioLabels = listOf(
         "MP3 - 320 kbps",
         "MP3 - 192 kbps",
@@ -56,6 +63,8 @@ class MainActivity : AppCompatActivity() {
         urlInput = findViewById(R.id.urlInput)
         typeSpinner = findViewById(R.id.typeSpinner)
         qualitySpinner = findViewById(R.id.qualitySpinner)
+        codecSpinner = findViewById(R.id.codecSpinner)
+        codecGroup = findViewById(R.id.codecGroup)
         primaryBtn = findViewById(R.id.primaryBtn)
         cancelBtn = findViewById(R.id.cancelBtn)
         historyBtn = findViewById(R.id.historyBtn)
@@ -76,6 +85,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         typeSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        codecSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, codecLabels)
         setQualityList(true)
         typeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
@@ -106,6 +116,8 @@ class MainActivity : AppCompatActivity() {
     private fun setQualityList(video: Boolean) {
         val list = if (video) videoLabels else audioLabels
         qualitySpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, list)
+        if (video) qualitySpinner.setSelection(1) // 1080p افتراضيًا
+        codecGroup.visibility = if (video) View.VISIBLE else View.GONE
     }
 
     private fun updateEngine() {
@@ -126,7 +138,12 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "الصق رابط صحيح الأول", Toast.LENGTH_SHORT).show()
             return
         }
-        Downloader.start(url, typeSpinner.selectedItemPosition == 0, qualitySpinner.selectedItemPosition)
+        Downloader.start(
+            url,
+            typeSpinner.selectedItemPosition == 0,
+            qualitySpinner.selectedItemPosition,
+            codecSpinner.selectedItemPosition
+        )
     }
 
     private fun render(s: Downloader.UiState) {
@@ -141,6 +158,7 @@ class MainActivity : AppCompatActivity() {
         urlInput.isEnabled = idle
         typeSpinner.isEnabled = idle
         qualitySpinner.isEnabled = idle
+        codecSpinner.isEnabled = idle
 
         when (s.phase) {
             Downloader.Phase.IDLE -> {

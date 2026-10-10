@@ -11,11 +11,21 @@ android {
         applicationId = "com.example.ytdl"
         minSdk = 29
         targetSdk = 34
-        versionCode = 3
-        versionName = "3.0"
-        // arm64 فقط = أغلب موبايلات اليومين دول، وبيصغّر الحجم للنص تقريبًا
-        // لو موبايلك قديم (32-bit) ضيف "armeabi-v7a" هنا
-        ndk { abiFilters += listOf("arm64-v8a") }
+        versionCode = 5
+        versionName = "4.5"
+    }
+
+    // 3 ملفات APK:
+    //  - arm64-v8a      : معظم الموبايلات الحديثة (أصغر حجم)
+    //  - armeabi-v7a    : الموبايلات اللي نظامها 32-bit (زي بعض موبايلات Samsung A)
+    //  - universal      : يشتغل على الكل (ابعته لأصحابك)
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
+        }
     }
 
     buildTypes {
@@ -29,7 +39,11 @@ android {
     kotlinOptions { jvmTarget = "17" }
 
     packaging {
-        jniLibs { useLegacyPackaging = true }
+        jniLibs {
+            useLegacyPackaging = true
+            // مش محتاجين معالجات x86 (محاكيات فقط) - بيوفر حجم
+            excludes += listOf("**/x86/**", "**/x86_64/**")
+        }
     }
 }
 

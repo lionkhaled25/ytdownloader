@@ -56,7 +56,7 @@ object Notifier {
         } catch (_: Exception) { }
     }
 
-    fun done(ctx: Context, name: String, uri: Uri, mime: String) {
+    fun done(ctx: Context, name: String, uri: Uri, mime: String, sizeText: String) {
         ensureChannels(ctx)
         val id = 2000 + (System.currentTimeMillis() % 100000).toInt()
         val view = Intent(Intent.ACTION_VIEW)
@@ -68,7 +68,7 @@ object Notifier {
         val n = NotificationCompat.Builder(ctx, CH_DONE)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("تم التحميل ✅")
-            .setContentText(name)
+            .setContentText("$name  •  $sizeText")
             .setContentIntent(pi)
             .setAutoCancel(true)
             .build()

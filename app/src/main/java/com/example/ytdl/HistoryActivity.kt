@@ -38,7 +38,8 @@ class HistoryActivity : AppCompatActivity() {
                 val item = getItem(position)!!
                 v.findViewById<TextView>(android.R.id.text1).text =
                     (if (item.isVideo) "🎬 " else "🎵 ") + item.name
-                v.findViewById<TextView>(android.R.id.text2).text = fmt.format(Date(item.time))
+                v.findViewById<TextView>(android.R.id.text2).text = fmt.format(Date(item.time)) +
+                    (if (item.size > 0) "  •  " + formatSize(item.size) else "")
                 return v
             }
         }

@@ -32,7 +32,7 @@ object Downloader {
         val stopping: Boolean = false
     )
 
-    val videoHeights = listOf(1080, 720, 480, 360)
+    val videoHeights = listOf(1440, 1080, 720, 480, 360)
 
     private const val PROCESS_ID = "ytdl-task"
     private val OUT_EXT = setOf("mp4", "mp3", "m4a", "webm", "mkv", "opus")
@@ -46,6 +46,7 @@ object Downloader {
     private var curUrl = ""
     private var curIsVideo = true
     private var curQuality = 0
+    private var curCodec = 0   // 0 = VP9 ، 1 = AV1 ، 2 = H.264
 
     private val tmpDir get() = File(app.cacheDir, "dl")
 
@@ -55,11 +56,12 @@ object Downloader {
 
     // ---------------- التحكم ----------------
 
-    fun start(url: String, isVideo: Boolean, quality: Int) {
+    fun start(url: String, isVideo: Boolean, quality: Int, codec: Int) {
         if (_state.value.phase != Phase.IDLE) return
         curUrl = url
         curIsVideo = isVideo
         curQuality = quality
+        curCodec = codec
         _state.value = UiState(Phase.DOWNLOADING, 0, "", "جاري التحضير...")
         run(resume = false)
     }
@@ -153,9 +155,13 @@ object Downloader {
                 val uri = withContext(Dispatchers.IO) { saveToDownloads(file, mime) }
                 tmpDir.deleteRecursively()
 
-                History.add(app, HistoryItem(file.name, uri.toString(), mime, System.currentTimeMillis(), curIsVideo))
-                Notifier.done(app, file.name, uri, mime)
-                _state.value = UiState(Phase.IDLE, 100, "", "تم ✅  الملف في: Downloads/YTDL/${file.name}")
+                val size = file.length()
+                History.add(app, HistoryItem(file.name, uri.toString(), mime, System.currentTimeMillis(), curIsVideo, size))
+                Notifier.done(app, file.name, uri, mime, formatSize(size))
+                _state.value = UiState(
+                    Phase.IDLE, 100, "",
+                    "تم ✅  الحجم: ${formatSize(size)}\nالملف في: Downloads/YTDL/${file.name}"
+                )
             } catch (e: Exception) {
                 if (stopReason != null) {
                     handleStopped()
@@ -176,11 +182,23 @@ object Downloader {
 
         if (curIsVideo) {
             val h = videoHeights[curQuality]
-            req.addOption(
-                "-f",
-                "bv*[height<=$h][vcodec^=avc1]+ba[ext=m4a]/bv*[height<=$h]+ba/b[height<=$h]"
-            )
-            req.addOption("--merge-output-format", "mp4")
+            // 2K وأعلى متاحة على يوتيوب بـ VP9/AV1 فقط، فنتجاهل اختيار H.264 هنا
+            val codec = if (h > 1080 && curCodec == 2) 0 else curCodec
+            req.addOption("-f", "bv*[height<=$h]+ba/b[height<=$h]")
+            when (codec) {
+                0 -> {
+                    req.addOption("-S", "res,fps,vcodec:vp9")
+                    req.addOption("--merge-output-format", "webm/mkv")
+                }
+                1 -> {
+                    req.addOption("-S", "res,fps,vcodec:av01")
+                    req.addOption("--merge-output-format", "webm/mkv")
+                }
+                else -> {
+                    req.addOption("-S", "res,fps,vcodec:h264,acodec:aac")
+                    req.addOption("--merge-output-format", "mp4/mkv")
+                }
+            }
         } else {
             req.addOption("-x")
             when (curQuality) {
