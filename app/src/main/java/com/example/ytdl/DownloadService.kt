@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/** خدمة بتخلي التحميل شغال في الخلفية وبتعرض إشعار التقدّم */
+/** خدمة بتخلي التحميلات شغالة في الخلفية وبتعرض إشعار تقدّم واحد لكل التحميلات */
 class DownloadService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -21,26 +21,32 @@ class DownloadService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        Downloader.serviceActive = true
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Downloader.serviceActive = true
         Notifier.ensureChannels(this)
         ServiceCompat.startForeground(
             this,
             Notifier.ONGOING_ID,
-            Notifier.progress(this, Downloader.state.value),
+            Notifier.progress(this, Downloader.summaryOf(Downloader.tasks.value)),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         )
 
         if (!started) {
             started = true
             scope.launch {
-                Downloader.state
-                    .map { Triple(it.phase, it.percent, it.stopping) }
+                Downloader.tasks
+                    .map { Downloader.summaryOf(it) }
                     .distinctUntilChanged()
-                    .collect {
-                        val s = Downloader.state.value
-                        if (s.phase == Downloader.Phase.DOWNLOADING) {
+                    .collect { s ->
+                        if (s.running + s.queued > 0) {
                             Notifier.post(this@DownloadService, Notifier.ONGOING_ID, Notifier.progress(this@DownloadService, s))
                         } else {
+                            Downloader.serviceActive = false
                             ServiceCompat.stopForeground(this@DownloadService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                             stopSelf()
                         }
@@ -51,6 +57,7 @@ class DownloadService : Service() {
     }
 
     override fun onDestroy() {
+        Downloader.serviceActive = false
         scope.cancel()
         super.onDestroy()
     }

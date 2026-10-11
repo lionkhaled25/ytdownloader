@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="الإعدادات"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="عدد التحميلات في نفس الوقت"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/maxSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="الباقي بيستنى في قايمة الانتظار ويبدأ لوحده لما واحد يخلص."
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="حد سرعة التحميل (لكل فيديو)"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/speedSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="الحد بيتطبّق على كل فيديو لوحده، يعني 3 تحميلات بحد 1 MB/s = حوالي 3 MB/s في المجموع. بيسري على التحميلات اللي بتبدأ بعد التغيير."
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="تحميل الصوت"
+            android:textStyle="bold" />
+
+        <CheckBox
+            android:id="@+id/cbCover"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="دمج غلاف الفيديو كصورة للملف" />
+
+        <CheckBox
+            android:id="@+id/cbMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="دمج اسم المؤلف/القناة والعنوان" />
+
+        <CheckBox
+            android:id="@+id/cbLyrics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="جلب كلمات الأغنية (Lyrics) تلقائيًا" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="الكلمات بتيجي من خدمة LRCLIB لو الأغنية موجودة عندهم، وبتتدمج جوه ملف MP3 وبتتحفظ كملف .lrc جنب الأغنية (أي صيغة). لو ملقيتش تطابق مضبوط مش بتتحمّل كلمات غلط."
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

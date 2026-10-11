@@ -8,11 +8,14 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.app.NotificationCompat
+import java.util.concurrent.atomic.AtomicInteger
 
 object Notifier {
     private const val CH_PROGRESS = "progress"
     private const val CH_DONE = "done"
+    private const val CH_QUIET = "done_quiet"
     const val ONGOING_ID = 1001
+    private val nextId = AtomicInteger(2000)
 
     fun ensureChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
@@ -22,27 +25,29 @@ object Notifier {
         nm.createNotificationChannel(
             NotificationChannel(CH_DONE, "اكتمال التحميل", NotificationManager.IMPORTANCE_DEFAULT)
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_QUIET, "ملفات مكتملة (بدون صوت)", NotificationManager.IMPORTANCE_LOW)
+        )
     }
 
     private fun openApp(ctx: Context): PendingIntent {
-        val i = Intent(ctx, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val i = Intent(ctx, QueueActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         return PendingIntent.getActivity(
             ctx, 0, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
 
-    fun progress(ctx: Context, s: Downloader.UiState): Notification {
-        val text = when {
-            s.stopping -> "جاري الإيقاف..."
-            s.percent <= 0 -> "جاري التحضير..."
-            s.eta.isNotEmpty() -> "${s.percent}%  •  باقي ${s.eta}"
-            else -> "${s.percent}%"
+    fun progress(ctx: Context, s: Downloader.Summary): Notification {
+        val title = if (s.running == 1 && s.queued == 0) {
+            "جاري التحميل: ${s.title}".take(60)
+        } else {
+            "جاري تحميل ${s.running} ملف" + if (s.queued > 0) "  •  ${s.queued} في الانتظار" else ""
         }
         return NotificationCompat.Builder(ctx, CH_PROGRESS)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("جاري التحميل")
-            .setContentText(text)
+            .setContentTitle(title)
+            .setContentText(if (s.percent <= 0) "جاري التحضير..." else "${s.percent}%")
             .setProgress(100, s.percent, s.percent <= 0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -53,35 +58,37 @@ object Notifier {
     fun post(ctx: Context, id: Int, n: Notification) {
         try {
             ctx.getSystemService(NotificationManager::class.java).notify(id, n)
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
     }
 
-    fun done(ctx: Context, name: String, uri: Uri, mime: String, sizeText: String) {
+    /** alert=true لما ده آخر ملف في القايمة (بصوت)، غير كده إشعار هادي */
+    fun done(ctx: Context, name: String, uri: Uri, mime: String, sizeText: String, alert: Boolean, total: Int) {
         ensureChannels(ctx)
-        val id = 2000 + (System.currentTimeMillis() % 100000).toInt()
+        val id = nextId.getAndIncrement()
         val view = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, mime)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         val pi = PendingIntent.getActivity(
             ctx, id, view, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val n = NotificationCompat.Builder(ctx, CH_DONE)
+        val b = NotificationCompat.Builder(ctx, if (alert) CH_DONE else CH_QUIET)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("تم التحميل ✅")
             .setContentText("$name  •  $sizeText")
             .setContentIntent(pi)
             .setAutoCancel(true)
-            .build()
-        post(ctx, id, n)
+        if (alert && total > 1) b.setSubText("اكتمل $total تحميل")
+        post(ctx, id, b.build())
     }
 
-    fun failed(ctx: Context, msg: String?) {
+    fun failed(ctx: Context, title: String, msg: String) {
         ensureChannels(ctx)
-        val id = 2000 + (System.currentTimeMillis() % 100000).toInt()
-        val n = NotificationCompat.Builder(ctx, CH_DONE)
+        val id = nextId.getAndIncrement()
+        val n = NotificationCompat.Builder(ctx, CH_QUIET)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("فشل التحميل")
-            .setContentText(msg ?: "حصل خطأ")
+            .setContentText(if (title.isNotBlank()) "$title — $msg" else msg)
             .setContentIntent(openApp(ctx))
             .setAutoCancel(true)
             .build()
