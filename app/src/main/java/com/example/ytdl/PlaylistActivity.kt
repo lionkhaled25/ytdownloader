@@ -56,6 +56,8 @@ class PlaylistActivity : AppCompatActivity() {
             findViewById<Spinner>(R.id.qualitySpinner)
         )
 
+        picker.restore(AppSettings.lastVideo(this), AppSettings.lastQuality(this), AppSettings.lastCodec(this))
+
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_multiple_choice, titles)
         listView.adapter = adapter
         listView.choiceMode = ListView.CHOICE_MODE_MULTIPLE
@@ -207,6 +209,7 @@ class PlaylistActivity : AppCompatActivity() {
             .trim()
             .take(60)
             .ifEmpty { "Playlist" }
+        picker.save()
         Downloader.enqueueAll(
             chosen.map { it.url to it.title },
             picker.isVideo, picker.qualityIndex, picker.codecIndex, folder

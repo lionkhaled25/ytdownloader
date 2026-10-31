@@ -25,6 +25,17 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <!-- النافذة المنبثقة اللي بتظهر عند مشاركة لينك من يوتيوب -->
+        <activity
+            android:name=".ShareActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="YT Downloader"
+            android:taskAffinity=""
+            android:theme="@style/Theme.YTDL.Transparent">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />

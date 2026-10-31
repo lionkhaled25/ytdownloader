@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<Spinner>(R.id.qualitySpinner)
         )
 
-        handleShare(intent)
+        picker.restore(AppSettings.lastVideo(this), AppSettings.lastQuality(this), AppSettings.lastCodec(this))
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -79,17 +79,6 @@ class MainActivity : AppCompatActivity() {
         updateEngine()
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleShare(intent)
-    }
-
-    private fun handleShare(i: Intent?) {
-        if (i != null && i.action == Intent.ACTION_SEND) {
-            i.getStringExtra(Intent.EXTRA_TEXT)?.let { urlInput.setText(it) }
-        }
-    }
-
     private fun updateEngine() {
         lifecycleScope.launch {
             try {
@@ -114,6 +103,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, PlaylistActivity::class.java).putExtra("url", url))
             return
         }
+        picker.save()
         Downloader.enqueue(url, picker.isVideo, picker.qualityIndex, picker.codecIndex)
         urlInput.setText("")
         Toast.makeText(this, "تمت الإضافة ✅ — تابعها من «التحميلات الجارية»", Toast.LENGTH_SHORT).show()

@@ -25,4 +25,14 @@ object AppSettings {
 
     fun lyrics(c: Context): Boolean = p(c).getBoolean("lyrics", true)
     fun setLyrics(c: Context, v: Boolean) = p(c).edit().putBoolean("lyrics", v).apply()
+
+    // ---- آخر اختيار للنوع/الجودة/الترميز ----
+    fun lastVideo(c: Context): Boolean = p(c).getBoolean("last_video", true)
+    fun lastQuality(c: Context): Int =
+        p(c).getInt("last_quality", if (lastVideo(c)) Formats.DEFAULT_VIDEO_INDEX else 0)
+    fun lastCodec(c: Context): Int = p(c).getInt("last_codec", 0)
+    fun saveLast(c: Context, video: Boolean, quality: Int, codec: Int) {
+        p(c).edit().putBoolean("last_video", video).putInt("last_quality", quality)
+            .putInt("last_codec", codec).apply()
+    }
 }

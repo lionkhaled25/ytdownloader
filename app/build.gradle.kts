@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ytdl"
         minSdk = 29
         targetSdk = 34
-        versionCode = 7
-        versionName = "5.1"
+        versionCode = 8
+        versionName = "6.0"
     }
 
     // 3 ملفات APK:

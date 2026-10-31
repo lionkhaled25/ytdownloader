@@ -44,7 +44,7 @@ object Downloader {
 
     data class Summary(val running: Int, val queued: Int, val percent: Int, val title: String)
 
-    val videoHeights = listOf(1440, 1080, 720, 480, 360)
+    val videoHeights = listOf(2160, 1440, 1080, 720, 480, 360)
 
     /** بتتظبط من DownloadService */
     @Volatile
