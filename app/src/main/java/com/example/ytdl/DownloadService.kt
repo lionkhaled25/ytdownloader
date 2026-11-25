@@ -16,6 +16,10 @@ import kotlinx.coroutines.launch
 /** خدمة بتخلي التحميلات شغالة في الخلفية وبتعرض إشعار تقدّم واحد لكل التحميلات */
 class DownloadService : Service() {
 
+    companion object {
+        const val ACTION_PAUSE_ALL = "com.example.ytdl.PAUSE_ALL"
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var started = false
 
@@ -27,6 +31,12 @@ class DownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // زرار "إيقاف مؤقت" في الإشعار
+        if (intent?.action == ACTION_PAUSE_ALL) {
+            Downloader.pauseAll()
+            if (!started) stopSelf()
+            return START_NOT_STICKY
+        }
         Downloader.serviceActive = true
         Notifier.ensureChannels(this)
         ServiceCompat.startForeground(

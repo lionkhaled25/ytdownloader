@@ -31,6 +31,13 @@ object Notifier {
         )
     }
 
+    private fun pauseAllIntent(ctx: Context): PendingIntent {
+        val i = Intent(ctx, DownloadService::class.java).setAction(DownloadService.ACTION_PAUSE_ALL)
+        return PendingIntent.getService(
+            ctx, 1, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
     private fun openApp(ctx: Context): PendingIntent {
         val i = Intent(ctx, QueueActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -45,15 +52,24 @@ object Notifier {
         } else {
             "جاري تحميل ${s.running} ملف" + if (s.queued > 0) "  •  ${s.queued} في الانتظار" else ""
         }
+        // بدل النسبة: اللي نزل فعلًا من إجمالي الحجم + سرعة التحميل الحالية
+        val text = when {
+            s.totalBytes > 0 ->
+                "${formatSize(s.downloadedBytes)} من ${formatSize(s.totalBytes)}" +
+                    (if (s.speedBps > 0) "  •  ${formatSize(s.speedBps)}/ث" else "")
+            s.percent <= 0 -> "جاري التحضير..."
+            else -> "${s.percent}%"
+        }
         return NotificationCompat.Builder(ctx, CH_PROGRESS)
             .setColor(RED)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title)
-            .setContentText(if (s.percent <= 0) "جاري التحضير..." else "${s.percent}%")
+            .setContentText(text)
             .setProgress(100, s.percent, s.percent <= 0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openApp(ctx))
+            .addAction(0, "⏸ إيقاف مؤقت", pauseAllIntent(ctx))
             .build()
     }
 

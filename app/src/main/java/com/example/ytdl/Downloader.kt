@@ -41,10 +41,20 @@ object Downloader {
         val percent: Int = 0,
         val eta: String = "",
         val message: String = "في الانتظار",
-        val stopping: Boolean = false
+        val stopping: Boolean = false,
+        val totalBytes: Long = 0,
+        val speedBps: Long = 0
     )
 
-    data class Summary(val running: Int, val queued: Int, val percent: Int, val title: String)
+    data class Summary(
+        val running: Int,
+        val queued: Int,
+        val percent: Int,
+        val title: String,
+        val totalBytes: Long = 0,
+        val downloadedBytes: Long = 0,
+        val speedBps: Long = 0
+    )
 
     val videoHeights = listOf(2160, 1440, 1080, 720, 480, 360)
 
@@ -62,6 +72,8 @@ object Downloader {
     private val OUT_EXT = setOf("mp4", "mp3", "m4a", "webm", "mkv", "opus")
     private val DEST_RE = Regex("""\[(?:download|ExtractAudio)\] Destination: (.+)""")
     private val FMT_RE = Regex("""\.f\d+\z""")
+    private val SIZE_RE = Regex("""of\s+~?([\d.]+\s*[KMG]i?B)""")
+    private val SPEED_RE = Regex("""at\s+([\d.]+\s*[KMG]i?B)/s""")
 
     private lateinit var app: Context
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -106,7 +118,10 @@ object Downloader {
             run.size,
             list.count { it.status == Status.QUEUED },
             pct,
-            run.firstOrNull()?.title ?: ""
+            run.firstOrNull()?.title ?: "",
+            totalBytes = run.sumOf { it.totalBytes },
+            downloadedBytes = run.sumOf { it.totalBytes * it.percent / 100 },
+            speedBps = run.sumOf { it.speedBps }
         )
     }
 
@@ -298,12 +313,16 @@ object Downloader {
             // لو ضغطنا إيقاف/إلغاء قبل ما العملية تتسجّل، نكرر الإيقاف هنا
             if (rt.stop != null) YoutubeDL.getInstance().destroyProcessById(pid)
             val newTitle = titleFrom(line)
+            val sizeB = SIZE_RE.find(line)?.let { sizeToBytes(it.groupValues[1]) }
+            val speedB = SPEED_RE.find(line)?.let { sizeToBytes(it.groupValues[1]) }
             upd(t.id) { s ->
                 s.copy(
                     title = newTitle ?: s.title,
                     percent = if (p >= 0) p.toInt() else s.percent,
                     eta = if (p >= 0) fmtEta(eta) else s.eta,
-                    message = if (line.isNotBlank()) line.trim().take(100) else s.message
+                    message = if (line.isNotBlank()) line.trim().take(100) else s.message,
+                    totalBytes = sizeB ?: s.totalBytes,
+                    speedBps = speedB ?: s.speedBps
                 )
             }
         }
@@ -501,4 +520,20 @@ object Downloader {
 
     private fun fmtEta(sec: Long): String =
         if (sec < 0) "--:--" else "%d:%02d".format(sec / 60, sec % 60)
+
+    /** بيحوّل نص زي "123.4MiB" لبايتات */
+    private fun sizeToBytes(text: String): Long? {
+        val m = Regex("""([\d.]+)\s*([KMG]i?B|B)""").find(text.trim()) ?: return null
+        val v = m.groupValues[1].toDoubleOrNull() ?: return null
+        val mult = when (m.groupValues[2]) {
+            "KiB" -> 1024.0
+            "MiB" -> 1024.0 * 1024
+            "GiB" -> 1024.0 * 1024 * 1024
+            "KB" -> 1000.0
+            "MB" -> 1000.0 * 1000
+            "GB" -> 1000.0 * 1000 * 1000
+            else -> 1.0
+        }
+        return (v * mult).toLong()
+    }
 }
