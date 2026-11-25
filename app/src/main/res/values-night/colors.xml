@@ -1,28 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ستايل Steins;Gate: خلفية فحمية دافية + كهرماني Nixie -->
-    <color name="brand_dark">#171006</color>
-    <color name="brand_red">#3A2A10</color>
-    <color name="nixie">#FF9E2C</color>
+    <color name="brand_dark">#B71C1C</color>
+    <color name="brand_red">#E53935</color>
 
-    <color name="md_primary">#FF9E2C</color>
-    <color name="md_on_primary">#241300</color>
-    <color name="md_primary_container">#4A3008</color>
-    <color name="md_on_primary_container">#FFDCAE</color>
-    <color name="md_secondary">#B79B7B</color>
-    <color name="md_on_secondary">#241A0E</color>
-    <color name="md_secondary_container">#3A2D1B</color>
-    <color name="md_on_secondary_container">#F3DFC4</color>
-    <color name="md_background">#14100B</color>
-    <color name="md_surface">#14100B</color>
-    <color name="md_on_surface">#F1E4D3</color>
-    <color name="md_surface_variant">#3A2F22</color>
-    <color name="md_on_surface_variant">#D8C4AC</color>
-    <color name="md_outline">#8A755B</color>
-    <color name="md_outline_variant">#3A2F22</color>
-    <color name="md_container_lowest">#0F0B07</color>
-    <color name="md_container_low">#1A140D</color>
-    <color name="md_container">#1F1810</color>
-    <color name="md_container_high">#282014</color>
-    <color name="md_container_highest">#32291B</color>
+    <color name="md_primary">#FF8A80</color>
+    <color name="md_on_primary">#4A0000</color>
+    <color name="md_primary_container">#93000A</color>
+    <color name="md_on_primary_container">#FFDAD6</color>
+    <color name="md_secondary">#E7BDB8</color>
+    <color name="md_on_secondary">#442926</color>
+    <color name="md_secondary_container">#5D3F3B</color>
+    <color name="md_on_secondary_container">#FFDAD6</color>
+    <color name="md_background">#1A1110</color>
+    <color name="md_surface">#1A1110</color>
+    <color name="md_on_surface">#F1DFDC</color>
+    <color name="md_surface_variant">#534341</color>
+    <color name="md_on_surface_variant">#D8C2BF</color>
+    <color name="md_outline">#A08C89</color>
+    <color name="md_outline_variant">#534341</color>
+    <color name="md_container_lowest">#140C0B</color>
+    <color name="md_container_low">#221918</color>
+    <color name="md_container">#271D1C</color>
+    <color name="md_container_high">#322826</color>
+    <color name="md_container_highest">#3D3231</color>
 </resources>

@@ -4,12 +4,12 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- سهم التحميل بلون Nixie -->
+    <!-- سهم التحميل -->
     <path
-        android:fillColor="#FF9E2C"
+        android:fillColor="#FFFFFF"
         android:pathData="M49,28h10v22h11l-16,18l-16,-18h11z" />
     <!-- القاعدة -->
     <path
-        android:fillColor="#FF9E2C"
+        android:fillColor="#FFFFFF"
         android:pathData="M35,74h38v6h-38z" />
 </vector>

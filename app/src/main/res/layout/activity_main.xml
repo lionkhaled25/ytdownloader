@@ -151,7 +151,6 @@
                         android:id="@+id/summaryText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="@font/share_tech_mono"
                         android:text="مفيش تحميلات دلوقتي" />
 
                     <ProgressBar
@@ -161,8 +160,6 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:max="100"
-                        android:progressBackgroundTint="#3A2C18"
-                        android:progressTint="@color/nixie"
                         android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

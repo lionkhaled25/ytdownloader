@@ -19,16 +19,13 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:max="100"
-        android:progressBackgroundTint="#3A2C18"
-        android:progressTint="@color/nixie" />
+        android:max="100" />
 
     <TextView
         android:id="@+id/taskInfo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:fontFamily="@font/share_tech_mono"
         android:textSize="12sp" />
 
     <LinearLayout

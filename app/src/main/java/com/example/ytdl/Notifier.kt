@@ -15,7 +15,7 @@ object Notifier {
     private const val CH_DONE = "done"
     private const val CH_QUIET = "done_quiet"
     const val ONGOING_ID = 1001
-    private const val AMBER = 0xFFFF9E2C.toInt()
+    private const val RED = 0xFFD32F2F.toInt()
     private val nextId = AtomicInteger(2000)
 
     fun ensureChannels(ctx: Context) {
@@ -61,7 +61,7 @@ object Notifier {
             else -> "${s.percent}%"
         }
         return NotificationCompat.Builder(ctx, CH_PROGRESS)
-            .setColor(AMBER)
+            .setColor(RED)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title)
             .setContentText(text)
@@ -91,7 +91,7 @@ object Notifier {
             ctx, id, view, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val b = NotificationCompat.Builder(ctx, if (alert) CH_DONE else CH_QUIET)
-            .setColor(AMBER)
+            .setColor(RED)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle("تم التحميل ✅")
             .setContentText("$name  •  $sizeText")
@@ -105,7 +105,7 @@ object Notifier {
         ensureChannels(ctx)
         val id = nextId.getAndIncrement()
         val n = NotificationCompat.Builder(ctx, CH_QUIET)
-            .setColor(AMBER)
+            .setColor(RED)
             .setSmallIcon(android.R.drawable.stat_notify_error)
             .setContentTitle("فشل التحميل")
             .setContentText(if (title.isNotBlank()) "$title — $msg" else msg)
