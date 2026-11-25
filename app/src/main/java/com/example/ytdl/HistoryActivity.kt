@@ -11,6 +11,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,13 +64,16 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     private fun reload() {
-        val all = History.load(this)
-        val alive = all.filter { exists(Uri.parse(it.uri)) }
-        all.filter { it !in alive }.forEach { History.remove(this, it.uri) }
-        items.clear()
-        items.addAll(alive)
-        adapter.notifyDataSetChanged()
-        emptyText.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        lifecycleScope.launch {
+            val all = History.load(this@HistoryActivity)
+            // فحص وجود الملفات I/O على كل عنصر، فبيحصل في الخلفية عشان الشاشة متهنجش
+            val alive = withContext(Dispatchers.IO) { all.filter { exists(Uri.parse(it.uri)) } }
+            all.filter { it !in alive }.forEach { History.remove(this@HistoryActivity, it.uri) }
+            items.clear()
+            items.addAll(alive)
+            adapter.notifyDataSetChanged()
+            emptyText.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+        }
     }
 
     private fun openItem(item: HistoryItem) {

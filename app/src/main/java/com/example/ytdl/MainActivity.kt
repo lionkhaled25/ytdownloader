@@ -17,7 +17,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,14 +80,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateEngine() {
         lifecycleScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    YoutubeDL.getInstance().updateYoutubeDL(
-                        this@MainActivity, YoutubeDL.UpdateChannel.STABLE
-                    )
+            // لو المحرك فشل يتجهز في بداية التطبيق (غالبًا مفيش نت أول تشغيل)، نحاول تاني ونوضح للمستخدم
+            if (App.engineError != null) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "محرك التحميل مش جاهز — بنحاول تجهيزه، استنى لحظة",
+                    Toast.LENGTH_LONG
+                ).show()
+                val ok = withContext(Dispatchers.IO) { App.initEngine(this@MainActivity) }
+                if (!ok) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "محرك التحميل محتاج نت أول تشغيل — وصّل النت وافتح التطبيق تاني",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@launch
                 }
-            } catch (_: Exception) {
             }
+            Engine.update(this@MainActivity)
         }
     }
 

@@ -61,7 +61,7 @@ object LyricsFetcher {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 8000
         c.readTimeout = 8000
-        c.setRequestProperty("User-Agent", "YTDownloader/5.0 (Android)")
+        c.setRequestProperty("User-Agent", "YTDownloader/6.1 (Android)")
         return try {
             if (c.responseCode != 200) null
             else JSONArray(c.inputStream.bufferedReader().use { it.readText() })
@@ -204,10 +204,24 @@ object Id3 {
                 }
             }
         }
-        if (!tmp.renameTo(file)) {
-            file.delete()
-            return tmp.renameTo(file)
+        // نقل ذري قدر الإمكان: الأصل ميتمسحش غير بعد ما النقل ينجح
+        return try {
+            try {
+                java.nio.file.Files.move(
+                    tmp.toPath(), file.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (_: Exception) {
+                java.nio.file.Files.move(
+                    tmp.toPath(), file.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+            true
+        } catch (_: Exception) {
+            tmp.delete()
+            false
         }
-        return true
     }
 }

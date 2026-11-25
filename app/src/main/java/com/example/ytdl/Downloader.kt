@@ -13,6 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -72,6 +74,29 @@ object Downloader {
 
     fun init(ctx: Context) {
         app = ctx.applicationContext
+        val saved = QueueStore.load(app)
+        if (saved.isNotEmpty()) {
+            nextId.set(saved.maxOf { it.id } + 1)
+            // اللي كان شغّال وفيه تقدّم: نعلّمه resume عشان يكمل من مكانه
+            saved.forEach { t ->
+                if (t.status == Status.QUEUED && t.percent > 0) {
+                    runtimes.getOrPut(t.id) { Rt() }.resume = true
+                }
+            }
+            _tasks.value = saved
+        }
+        // أي تغيير في القايمة يتحفظ على الديسك (بنقلل الكتابة: لما الحالة أو كل 10% يتغيروا)
+        scope.launch {
+            tasks
+                .map { list ->
+                    list.filter {
+                        it.status == Status.QUEUED || it.status == Status.PAUSED || it.status == Status.RUNNING
+                    }.map { Triple(it.id, it.status, it.percent / 10) }
+                }
+                .distinctUntilChanged()
+                .collect { withContext(Dispatchers.IO) { QueueStore.save(app, tasks.value) } }
+        }
+        if (saved.isNotEmpty()) schedule()
     }
 
     fun summaryOf(list: List<TaskUi>): Summary {
@@ -212,6 +237,17 @@ object Downloader {
     }
 
     private fun startTask(id: Long) {
+        if (App.engineError != null) {
+            upd(id) {
+                it.copy(
+                    status = Status.FAILED, stopping = false,
+                    message = "فشل: محرك التحميل مش متجهز — وصّل النت وافتح التطبيق تاني"
+                )
+            }
+            Notifier.failed(app, find(id)?.title ?: "", "محرك التحميل مش متجهز")
+            schedule()
+            return
+        }
         val rt = runtimes.getOrPut(id) { Rt() }
         rt.stop = null
         upd(id) {

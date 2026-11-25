@@ -91,16 +91,7 @@ class PlaylistActivity : AppCompatActivity() {
         YoutubeDL.getInstance().execute(req, "pl-fetch") { _, _, _ -> }.out
     }
 
-    private suspend fun updateEngine() {
-        withContext(Dispatchers.IO) {
-            try {
-                YoutubeDL.getInstance().updateYoutubeDL(
-                    this@PlaylistActivity, YoutubeDL.UpdateChannel.STABLE
-                )
-            } catch (_: Exception) {
-            }
-        }
-    }
+
 
     private fun fetch() {
         val url = Regex("https?://\\S+").find(urlInput.text.toString())?.value
@@ -119,7 +110,7 @@ class PlaylistActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     // غالبًا محرك yt-dlp قديم: نحدّثه ونجرّب تاني مرة واحدة
                     infoText.text = "جاري تحديث محرك التحميل وإعادة المحاولة..."
-                    updateEngine()
+                    Engine.update(this@PlaylistActivity)
                     runFetch(url)
                 }
                 parse(out)
@@ -191,7 +182,8 @@ class PlaylistActivity : AppCompatActivity() {
             return
         }
         for (i in entries.indices) listView.setItemChecked(i, true)
-        infoText.text = (if (playlistTitle.isNotEmpty()) "$playlistTitle — " else "") + "${entries.size} فيديو"
+        infoText.text = (if (playlistTitle.isNotEmpty()) "$playlistTitle — " else "") +
+            "${entries.size} فيديو" + (if (entries.size >= 500) " (أول 500 بس)" else "")
         updateCount()
     }
 
