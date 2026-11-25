@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ytdl"
         minSdk = 29
         targetSdk = 34
-        versionCode = 9
-        versionName = "6.1"
+        versionCode = 10
+        versionName = "6.2 Steins Gate Edition"
     }
 
     // 3 ملفات APK:
