@@ -7,7 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ProgressBar
+import android.widget.ListView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var urlInput: EditText
     private lateinit var summaryText: TextView
-    private lateinit var summaryBar: ProgressBar
+    private lateinit var taskAdapter: TaskAdapter
     private lateinit var picker: FormatPicker
 
     private val notifPermission =
@@ -35,15 +35,21 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        urlInput = findViewById(R.id.urlInput)
-        summaryText = findViewById(R.id.summaryText)
-        summaryBar = findViewById(R.id.summaryBar)
+        val taskList = findViewById<ListView>(R.id.taskList)
+        val header = layoutInflater.inflate(R.layout.header_main, taskList, false)
+        taskList.addHeaderView(header, null, false)
+        val adapter = TaskAdapter(layoutInflater)
+        taskList.adapter = adapter
+        taskAdapter = adapter
+
+        urlInput = header.findViewById(R.id.urlInput)
+        summaryText = header.findViewById(R.id.summaryText)
         picker = FormatPicker(
             this,
-            findViewById<Spinner>(R.id.typeSpinner),
-            findViewById(R.id.codecGroup),
-            findViewById<Spinner>(R.id.codecSpinner),
-            findViewById<Spinner>(R.id.qualitySpinner)
+            header.findViewById<Spinner>(R.id.typeSpinner),
+            header.findViewById(R.id.codecGroup),
+            header.findViewById<Spinner>(R.id.codecSpinner),
+            header.findViewById<Spinner>(R.id.qualitySpinner)
         )
 
         picker.restore(AppSettings.lastVideo(this), AppSettings.lastQuality(this), AppSettings.lastCodec(this))
@@ -55,7 +61,7 @@ class MainActivity : AppCompatActivity() {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        findViewById<Button>(R.id.addBtn).setOnClickListener { addDownload() }
+        header.findViewById<Button>(R.id.addBtn).setOnClickListener { addDownload() }
         findViewById<Button>(R.id.queueBtn).setOnClickListener {
             startActivity(Intent(this, QueueActivity::class.java))
         }
@@ -71,7 +77,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                Downloader.tasks.collect { renderSummary(it) }
+                Downloader.tasks.collect { taskAdapter.submit(it); renderSummary(it) }
             }
         }
 
@@ -115,13 +121,12 @@ class MainActivity : AppCompatActivity() {
         picker.save()
         Downloader.enqueue(url, picker.isVideo, picker.qualityIndex, picker.codecIndex)
         urlInput.setText("")
-        Toast.makeText(this, "تمت الإضافة ✅ — تابعها من «التحميلات الجارية»", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "تمت الإضافة ✅ — تابعها تحت", Toast.LENGTH_SHORT).show()
     }
 
     private fun renderSummary(list: List<Downloader.TaskUi>) {
         if (list.isEmpty()) {
             summaryText.text = "مفيش تحميلات دلوقتي"
-            summaryBar.visibility = android.view.View.GONE
             return
         }
         val s = Downloader.summaryOf(list)
@@ -131,11 +136,5 @@ class MainActivity : AppCompatActivity() {
         var text = "⬇ شغّال: ${s.running}  •  ⏳ انتظار: ${s.queued}  •  ⏸ متوقف: $paused  •  ✅ تم: $done"
         if (failed > 0) text += "  •  ⚠ فشل: $failed"
         summaryText.text = text
-        if (s.running > 0) {
-            summaryBar.visibility = android.view.View.VISIBLE
-            summaryBar.progress = s.percent
-        } else {
-            summaryBar.visibility = android.view.View.GONE
-        }
     }
 }

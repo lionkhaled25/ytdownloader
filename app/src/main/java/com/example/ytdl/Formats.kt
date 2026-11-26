@@ -9,7 +9,7 @@ import android.widget.Spinner
 object Formats {
     val types = listOf("فيديو", "صوت فقط")
     val videoLabels = listOf(
-        "2160p (4K)", "1440p (2K)", "1080p (Full HD)", "720p (HD)", "480p", "360p (حجم صغير)"
+        "2160p (4K)", "1440p (2K)", "1080p (Full HD)", "720p (HD)", "480p", "360p (حجم صغير)", "144p (أصغر حجم)"
     )
 
     /** رقم 1080p في القايمة اللي فوق */

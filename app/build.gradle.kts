@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ytdl"
         minSdk = 29
         targetSdk = 34
-        versionCode = 9
-        versionName = "6.1"
+        versionCode = 11
+        versionName = "6.3"
     }
 
     // 3 ملفات APK:
@@ -53,6 +53,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     val ytdl = "0.17.2"
     implementation("io.github.junkfood02.youtubedl-android:library:$ytdl")

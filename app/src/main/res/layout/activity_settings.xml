@@ -21,6 +21,94 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:text="المظهر"
+                android:textColor="?attr/colorPrimary"
+                android:textStyle="bold" />
+
+            <Spinner
+                android:id="@+id/themeSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="الحفظ والشبكة"
+                android:textColor="?attr/colorPrimary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/folderText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="فولدر الحفظ"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/folderBtn"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:text="📁 اختيار فولدر"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/folderResetBtn"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="↩ الافتراضي"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <CheckBox
+                android:id="@+id/cbWifi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="تحميل على الواي فاي بس (من غير باقة الموبايل)" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="المحرك (yt-dlp)"
+                android:textColor="?attr/colorPrimary"
+                android:textStyle="bold" />
+
+            <CheckBox
+                android:id="@+id/cbRetry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="إعادة المحاولة تلقائيًا لو التحميل فشل (مرتين)" />
+
+            <TextView
+                android:id="@+id/engineVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="النسخة: ..."
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/updateBtn"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🔄 حدّث yt-dlp دلوقتي" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
                 android:text="عدد التحميلات في نفس الوقت"
                 android:textColor="?attr/colorPrimary"
                 android:textStyle="bold" />

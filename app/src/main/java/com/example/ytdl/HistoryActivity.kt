@@ -35,15 +35,16 @@ class HistoryActivity : AppCompatActivity() {
         emptyText = findViewById(R.id.emptyText)
 
         adapter = object : ArrayAdapter<HistoryItem>(
-            this@HistoryActivity, android.R.layout.simple_list_item_2, android.R.id.text1, items
+            this@HistoryActivity, R.layout.item_history, R.id.hTitle, items
         ) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val v = super.getView(position, convertView, parent)
                 val item = getItem(position)!!
-                v.findViewById<TextView>(android.R.id.text1).text =
+                v.findViewById<TextView>(R.id.hTitle).text =
                     (if (item.isVideo) "🎬 " else "🎵 ") + item.name
-                v.findViewById<TextView>(android.R.id.text2).text = fmt.format(Date(item.time)) +
+                v.findViewById<TextView>(R.id.hSub).text = fmt.format(Date(item.time)) +
                     (if (item.size > 0) "  •  " + formatSize(item.size) else "")
+                v.findViewById<View>(R.id.hDelete).setOnClickListener { confirmDelete(item) }
                 return v
             }
         }
@@ -88,6 +89,36 @@ class HistoryActivity : AppCompatActivity() {
         }
     }
 
+    private fun deleteFile(item: HistoryItem): Boolean {
+        val uri = Uri.parse(item.uri)
+        return try {
+            if (android.provider.DocumentsContract.isDocumentUri(this, uri)) {
+                android.provider.DocumentsContract.deleteDocument(contentResolver, uri)
+            } else {
+                contentResolver.delete(uri, null, null) > 0
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun confirmDelete(item: HistoryItem) {
+        AlertDialog.Builder(this)
+            .setTitle("مسح الملف؟")
+            .setMessage(item.name)
+            .setPositiveButton("مسح الملف من الموبايل") { _, _ ->
+                if (deleteFile(item)) {
+                    History.remove(this, item.uri)
+                    reload()
+                } else {
+                    Toast.makeText(this, "مقدرتش أمسح الملف، امسحه من تطبيق الملفات", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNeutralButton("من القايمة بس") { _, _ -> History.remove(this, item.uri); reload() }
+            .setNegativeButton("رجوع", null)
+            .show()
+    }
+
     private fun showMenu(item: HistoryItem) {
         AlertDialog.Builder(this)
             .setTitle(item.name)
@@ -96,13 +127,7 @@ class HistoryActivity : AppCompatActivity() {
                     0 -> openItem(item)
                     1 -> { History.remove(this, item.uri); reload() }
                     2 -> {
-                        try {
-                            contentResolver.delete(Uri.parse(item.uri), null, null)
-                            History.remove(this, item.uri)
-                            reload()
-                        } catch (_: Exception) {
-                            Toast.makeText(this, "مقدرتش أمسح الملف، امسحه من تطبيق الملفات", Toast.LENGTH_LONG).show()
-                        }
+                        confirmDelete(item)
                     }
                 }
             }

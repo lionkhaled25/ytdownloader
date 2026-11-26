@@ -22,7 +22,7 @@
         <item name="colorSurfaceContainer">@color/md_container</item>
         <item name="colorSurfaceContainerHigh">@color/md_container_high</item>
         <item name="colorSurfaceContainerHighest">@color/md_container_highest</item>
-        <item name="android:statusBarColor">@color/brand_dark</item>
+        <item name="android:statusBarColor">@color/status_bar</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">@color/md_surface</item>
         <item name="android:windowLightNavigationBar">@bool/light_bars</item>

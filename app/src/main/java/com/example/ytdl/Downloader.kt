@@ -3,7 +3,15 @@ package com.example.ytdl
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.provider.DocumentsContract
+import androidx.documentfile.provider.DocumentFile
+import kotlinx.coroutines.delay
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.ContextCompat
@@ -56,7 +64,7 @@ object Downloader {
         val speedBps: Long = 0
     )
 
-    val videoHeights = listOf(2160, 1440, 1080, 720, 480, 360)
+    val videoHeights = listOf(2160, 1440, 1080, 720, 480, 360, 144)
 
     /** بتتظبط من DownloadService */
     @Volatile
@@ -67,7 +75,14 @@ object Downloader {
     private class Rt {
         @Volatile var stop: Stop? = null
         @Volatile var resume = false
+        @Volatile var retries = 0
     }
+
+    private const val MAX_RETRIES = 2
+
+    /** مهام اتوقفت لوحدها لأن الواي فاي فصل (وهترجع لوحدها) */
+    private val netPaused = ConcurrentHashMap.newKeySet<Long>()
+    private var updatedThisSession = false
 
     private val OUT_EXT = setOf("mp4", "mp3", "m4a", "webm", "mkv", "opus")
     private val DEST_RE = Regex("""\[(?:download|ExtractAudio)\] Destination: (.+)""")
@@ -108,7 +123,60 @@ object Downloader {
                 .distinctUntilChanged()
                 .collect { withContext(Dispatchers.IO) { QueueStore.save(app, tasks.value) } }
         }
+        registerNetworkWatcher()
         if (saved.isNotEmpty()) schedule()
+    }
+
+    // ==================== الواي فاي فقط ====================
+
+    /** true لو التحميل مسموح دلوقتي (الإعداد مقفول، أو الشبكة مش بباقة) */
+    fun networkAllowed(): Boolean {
+        if (!AppSettings.wifiOnly(app)) return true
+        return try {
+            val cm = app.getSystemService(ConnectivityManager::class.java)
+            val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+            caps != null && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun registerNetworkWatcher() {
+        try {
+            val cm = app.getSystemService(ConnectivityManager::class.java)
+            val cb = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = onNetChanged()
+                override fun onLost(network: Network) = onNetChanged()
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = onNetChanged()
+            }
+            cm.registerDefaultNetworkCallback(cb, Handler(Looper.getMainLooper()))
+        } catch (_: Exception) {
+        }
+    }
+
+    fun onNetChanged() {
+        if (!::app.isInitialized) return
+        if (networkAllowed()) {
+            val ids = netPaused.toList()
+            netPaused.clear()
+            ids.forEach { resume(it) }
+            schedule()
+        } else {
+            // الواي فاي فصل: نوقف اللي شغّال مؤقتًا، وهيكمل لوحده لما يرجع
+            _tasks.value.filter { it.status == Status.RUNNING && !it.stopping }.forEach {
+                netPaused.add(it.id)
+                pause(it.id)
+            }
+            waitingForWifi()
+        }
+    }
+
+    private fun waitingForWifi() {
+        _tasks.update { list ->
+            list.map {
+                if (it.status == Status.QUEUED) it.copy(message = "📶 في انتظار الواي فاي") else it
+            }
+        }
     }
 
     fun summaryOf(list: List<TaskUi>): Summary {
@@ -148,6 +216,10 @@ object Downloader {
 
     /** بيشغّل المهام اللي في الانتظار بحدود العدد المسموح (من الإعدادات) */
     fun schedule() {
+        if (!networkAllowed()) {
+            waitingForWifi()
+            return
+        }
         val max = AppSettings.maxConcurrent(app)
         var running = _tasks.value.count { it.status == Status.RUNNING }
         for (t in _tasks.value) {
@@ -189,6 +261,7 @@ object Downloader {
     }
 
     fun resume(id: Long) {
+        netPaused.remove(id)
         val t = find(id) ?: return
         if (t.status != Status.PAUSED) return
         upd(id) { it.copy(status = Status.QUEUED, message = "في الانتظار") }
@@ -218,7 +291,7 @@ object Downloader {
     fun retry(id: Long) {
         val t = find(id) ?: return
         if (t.status != Status.FAILED) return
-        runtimes[id]?.resume = false
+        runtimes[id]?.let { it.resume = false; it.retries = 0 }
         upd(id) { it.copy(status = Status.QUEUED, percent = 0, eta = "", message = "في الانتظار") }
         schedule()
     }
@@ -301,7 +374,7 @@ object Downloader {
             }
             finishTask(id, t0, dir)
         } catch (e: Exception) {
-            if (rt.stop != null) handleStopped(id, rt, dir) else failTask(id, dir, e)
+            if (rt.stop != null) handleStopped(id, rt, dir) else failTask(id, dir, e, rt)
         } finally {
             schedule()
         }
@@ -347,12 +420,45 @@ object Downloader {
         }
     }
 
-    private fun failTask(id: Long, dir: File, e: Exception) {
+    private fun failTask(id: Long, dir: File, e: Exception, rt: Rt) {
         val raw = e.message.orEmpty()
         val line = raw.lineSequence().map { it.trim() }.firstOrNull { it.contains("ERROR") }
             ?: raw.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
             ?: "حصل خطأ"
         val title = find(id)?.title ?: ""
+        // إعادة محاولة تلقائية (بنحدّث yt-dlp مرة في أول فشل لأن غالبًا يوتيوب غيّر حاجة)
+        val permanent = Regex("(?i)private video|members-only|sign in to confirm your age|copyright|has been removed|unavailable|not available in your country")
+            .containsMatchIn(raw)
+        if (AppSettings.autoRetry(app) && !permanent && rt.retries < MAX_RETRIES) {
+            rt.retries++
+            val n = rt.retries
+            rt.resume = false
+            dir.deleteRecursively()
+            upd(id) {
+                it.copy(
+                    status = Status.RUNNING, stopping = false, eta = "", percent = 0,
+                    message = "🔄 فشل، إعادة المحاولة ($n/$MAX_RETRIES)..."
+                )
+            }
+            scope.launch {
+                if (!updatedThisSession) {
+                    updatedThisSession = true
+                    Engine.updateQuietly(app)
+                } else {
+                    delay(3000)
+                }
+                val t = find(id)
+                when {
+                    t == null -> {}
+                    rt.stop != null -> handleStopped(id, rt, dir)
+                    else -> {
+                        upd(id) { it.copy(status = Status.QUEUED, message = "في الانتظار") }
+                        schedule()
+                    }
+                }
+            }
+            return
+        }
         upd(id) { it.copy(status = Status.FAILED, stopping = false, eta = "", message = "فشل: ${line.take(160)}") }
         dir.deleteRecursively()
         Notifier.failed(app, title, line.take(120))
@@ -492,7 +598,30 @@ object Downloader {
         return Environment.DIRECTORY_DOWNLOADS + "/YTDL" + sub
     }
 
+    /** بيرجّع فولدر الحفظ اللي اختاره المستخدم (وفولدر فرعي لو في)، أو null لو مفيش */
+    private fun customDir(folder: String?): DocumentFile? {
+        val tree = AppSettings.saveTree(app) ?: return null
+        return try {
+            var dir = DocumentFile.fromTreeUri(app, Uri.parse(tree)) ?: return null
+            if (!dir.canWrite()) return null
+            if (!folder.isNullOrBlank()) {
+                dir = dir.findFile(folder)?.takeIf { it.isDirectory } ?: dir.createDirectory(folder) ?: dir
+            }
+            dir
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun saveToDownloads(file: File, mime: String, folder: String?): Uri {
+        customDir(folder)?.let { dir ->
+            val doc = dir.createFile(mime, file.name)
+                ?: throw IllegalStateException("فشل إنشاء الملف في الفولدر المختار")
+            app.contentResolver.openOutputStream(doc.uri)!!.use { out ->
+                file.inputStream().use { it.copyTo(out) }
+            }
+            return doc.uri
+        }
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, file.name)
             put(MediaStore.Downloads.MIME_TYPE, mime)
@@ -508,6 +637,11 @@ object Downloader {
     }
 
     private fun saveLrc(baseName: String, text: String, folder: String?) {
+        customDir(folder)?.let { dir ->
+            val doc = dir.createFile("application/octet-stream", "$baseName.lrc") ?: return
+            app.contentResolver.openOutputStream(doc.uri)!!.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+            return
+        }
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, "$baseName.lrc")
             put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")

@@ -2,6 +2,7 @@
 <resources>
     <color name="brand_dark">#B71C1C</color>
     <color name="brand_red">#E53935</color>
+    <color name="status_bar">#B71C1C</color>
 
     <color name="md_primary">#C62828</color>
     <color name="md_on_primary">#FFFFFF</color>

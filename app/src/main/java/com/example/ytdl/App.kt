@@ -30,6 +30,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppSettings.applyTheme(this)
         Notifier.ensureChannels(this)
         // المحرك قبل استرجاع القايمة: لو فشل، التحميلات المسترجعة تفشل برسالة واضحة
         initEngine(this)

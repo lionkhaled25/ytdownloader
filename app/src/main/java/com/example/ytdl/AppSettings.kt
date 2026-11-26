@@ -26,6 +26,32 @@ object AppSettings {
     fun lyrics(c: Context): Boolean = p(c).getBoolean("lyrics", true)
     fun setLyrics(c: Context, v: Boolean) = p(c).edit().putBoolean("lyrics", v).apply()
 
+    // ---- إعادة المحاولة التلقائية ----
+    fun autoRetry(c: Context): Boolean = p(c).getBoolean("auto_retry", true)
+    fun setAutoRetry(c: Context, v: Boolean) = p(c).edit().putBoolean("auto_retry", v).apply()
+
+    // ---- واي فاي فقط ----
+    fun wifiOnly(c: Context): Boolean = p(c).getBoolean("wifi_only", false)
+    fun setWifiOnly(c: Context, v: Boolean) = p(c).edit().putBoolean("wifi_only", v).apply()
+
+    // ---- المظهر: 0 تلقائي ، 1 فاتح ، 2 داكن (أسود AMOLED) ----
+    val themeLabels = listOf("تلقائي (زي الموبايل)", "فاتح", "داكن (أسود AMOLED)")
+    fun theme(c: Context): Int = p(c).getInt("theme", 0).coerceIn(0, 2)
+    fun setTheme(c: Context, v: Int) = p(c).edit().putInt("theme", v).apply()
+    fun applyTheme(c: Context) {
+        androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(
+            when (theme(c)) {
+                1 -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                2 -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                else -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+        )
+    }
+
+    // ---- فولدر الحفظ (اختياري). فاضي = Downloads/YTDL ----
+    fun saveTree(c: Context): String? = p(c).getString("save_tree", null)?.takeIf { it.isNotBlank() }
+    fun setSaveTree(c: Context, v: String?) = p(c).edit().putString("save_tree", v ?: "").apply()
+
     // ---- آخر اختيار للنوع/الجودة/الترميز ----
     fun lastVideo(c: Context): Boolean = p(c).getBoolean("last_video", true)
     fun lastQuality(c: Context): Int =
