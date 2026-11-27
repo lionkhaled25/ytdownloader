@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ytdl"
         minSdk = 29
         targetSdk = 34
-        versionCode = 11
-        versionName = "6.3"
+        versionCode = 12
+        versionName = "6.4"
     }
 
     // 3 ملفات APK:
@@ -28,8 +28,27 @@ android {
         }
     }
 
+    signingConfigs {
+        create("rel") {
+            val ks = System.getenv("KEYSTORE_FILE")
+            if (ks != null) {
+                storeFile = file(ks)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "ytdl"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            isDebuggable = false
+            if (System.getenv("KEYSTORE_FILE") != null) signingConfig = signingConfigs.getByName("rel")
+        }
     }
 
     compileOptions {

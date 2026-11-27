@@ -20,9 +20,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
-      - name: Build debug APKs
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Prepare signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/ytdl.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/ytdl.jks" >> "$GITHUB_ENV"
+          fi
+      - name: Build release APKs
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: gradle assembleRelease --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         with:
           name: YTDownloader-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/release/*.apk
