@@ -16,63 +16,145 @@ internal fun JSONObject.str(key: String): String? {
     return optString(key, "").trim().takeIf { it.isNotEmpty() }
 }
 
-/** بيدوّر على كلمات الأغنية في LRCLIB (مجاني ومن غير مفتاح) */
+/**
+ * بيدوّر على كلمات الأغنية في أكتر من مصدر مجاني من غير مفاتيح:
+ * LRCLIB (متزامنة)، وDeezer لتوحيد اسم الأغنية/الفنان، وlyrics.ovh، وNetEase.
+ * للأغاني العربي بيفضّل الكلمات المكتوبة بالحروف العربي لو لقاها.
+ */
 object LyricsFetcher {
 
     data class Result(val plain: String?, val synced: String?)
 
-    private const val BASE = "https://lrclib.net/api/search"
+    private const val LRCLIB = "https://lrclib.net/api/search"
+    private const val UA = "YTDownloader/6.5 (Android)"
 
     private fun enc(s: String): String = URLEncoder.encode(s, "UTF-8")
 
-    fun find(title: String, artist: String?, track: String?, uploader: String?, duration: Double): Result? {
-        val queries = mutableListOf<String>()
-        fun add(q: String) {
-            if (q.isNotBlank() && q !in queries) queries.add(q)
+    private fun arabicRatio(s: String): Double {
+        var ar = 0
+        var letters = 0
+        for (ch in s) {
+            if (ch.isLetter()) {
+                letters++
+                if (ch in '\u0600'..'\u06FF' || ch in '\u0750'..'\u077F') ar++
+            }
         }
-
-        if (artist != null && track != null) {
-            add("track_name=${enc(track)}&artist_name=${enc(artist)}")
-        }
-        val cleaned = cleanTitle(title)
-        val idx = cleaned.indexOf(" - ")
-        if (idx > 0) {
-            val a = cleaned.substring(0, idx).trim()
-            val tr = cleaned.substring(idx + 3).trim()
-            add("track_name=${enc(tr)}&artist_name=${enc(a)}")
-            add("q=${enc("$a $tr")}")
-        }
-        add("q=${enc(cleaned)}")
-        if (uploader != null) add("q=${enc("$uploader $cleaned")}")
-
-        for (q in queries) {
-            val arr = try {
-                getJson("$BASE?$q")
-            } catch (_: Exception) {
-                null
-            } ?: continue
-            val r = pick(arr, duration)
-            if (r != null) return r
-        }
-        return null
+        return if (letters == 0) 0.0 else ar.toDouble() / letters
     }
 
-    private fun getJson(url: String): JSONArray? {
+    private fun isArabicText(s: String?) = s != null && arabicRatio(s) > 0.5
+    private fun hasArabic(s: String?) = s != null && arabicRatio(s) > 0.0
+
+    private fun get(url: String, headers: Map<String, String> = emptyMap(), post: String? = null): String? {
         val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 8000
-        c.readTimeout = 8000
-        c.setRequestProperty("User-Agent", "YTDownloader/6.1 (Android)")
         return try {
-            if (c.responseCode != 200) null
-            else JSONArray(c.inputStream.bufferedReader().use { it.readText() })
+            c.connectTimeout = 7000
+            c.readTimeout = 7000
+            c.setRequestProperty("User-Agent", UA)
+            headers.forEach { (k, v) -> c.setRequestProperty(k, v) }
+            if (post != null) {
+                c.requestMethod = "POST"
+                c.doOutput = true
+                c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                c.outputStream.use { it.write(post.toByteArray(Charsets.UTF_8)) }
+            }
+            if (c.responseCode != 200) null else c.inputStream.bufferedReader().use { it.readText() }
+        } catch (_: Exception) {
+            null
         } finally {
             c.disconnect()
         }
     }
 
-    private fun pick(arr: JSONArray, duration: Double): Result? {
+    private fun getJson(url: String): JSONArray? =
+        try { get(url)?.let { JSONArray(it) } } catch (_: Exception) { null }
+
+    fun find(title: String, artist: String?, track: String?, uploader: String?, duration: Double): Result? {
+        val deadline = System.currentTimeMillis() + 45_000
+        fun timeLeft() = System.currentTimeMillis() < deadline
+
+        val cleaned = cleanTitle(title)
+        val cleanArtist = artist?.let { cleanTitle(it) }?.takeIf { it.isNotBlank() }
+        val cleanTrack = track?.let { cleanTitle(it) }?.takeIf { it.isNotBlank() }
+        val upl = uploader?.let { cleanUploader(it) }?.takeIf { it.isNotBlank() }
+
+        // أزواج (فنان، أغنية) محتملة
+        val pairs = LinkedHashSet<Pair<String, String>>()
+        if (cleanArtist != null && cleanTrack != null) pairs.add(cleanArtist to cleanTrack)
+        for (sep in listOf(" - ", " – ", " — ", " ـ ")) {
+            val i = cleaned.indexOf(sep)
+            if (i > 0) {
+                val a = cleaned.substring(0, i).trim()
+                val t = cleaned.substring(i + sep.length).trim()
+                if (a.isNotBlank() && t.isNotBlank()) {
+                    pairs.add(a to t)
+                    pairs.add(t to a)
+                }
+                break
+            }
+        }
+        if (upl != null && cleaned.isNotBlank()) pairs.add(upl to cleaned)
+
+        val arabic = hasArabic(title) || hasArabic(artist) || hasArabic(track)
+        val found = mutableListOf<Result>()
+
+        fun consider(r: Result?): Boolean {
+            if (r == null) return false
+            found.add(r)
+            return !arabic || isArabicText(r.plain)
+        }
+
+        // 1) LRCLIB بالبيانات الأصلية
+        for (q in lrclibQueries(pairs, cleaned, upl)) {
+            if (!timeLeft()) break
+            val arr = getJson("$LRCLIB?$q") ?: continue
+            if (consider(pickLrclib(arr, duration))) return found.last()
+        }
+
+        // 2) Deezer: بيوحّد اسم الأغنية والفنان (بيفهم العربي والإنجليزي)
+        val names = if (timeLeft()) deezerNames(listOf(cleaned) + pairs.map { "${it.first} ${it.second}" }, duration) else emptyList()
+        for ((a, t) in names) {
+            if (!timeLeft()) break
+            val arr = getJson("$LRCLIB?track_name=${enc(t)}&artist_name=${enc(a)}")
+            if (arr != null && consider(pickLrclib(arr, duration))) return found.last()
+        }
+
+        // 3) lyrics.ovh بالأسماء الموحّدة (غالبًا بيرجّع العربي بالحروف العربي)
+        val ovhPairs = LinkedHashSet<Pair<String, String>>()
+        ovhPairs.addAll(names)
+        ovhPairs.addAll(pairs)
+        var ovhCalls = 0
+        for ((a, t) in ovhPairs) {
+            if (!timeLeft() || ovhCalls >= 6) break
+            ovhCalls++
+            if (consider(ovh(a, t))) return found.last()
+        }
+
+        // 4) NetEase (بحث بالأسماء الموحّدة لأنه ضعيف مع الحروف العربي)
+        val neteaseQueries = (names.map { "${it.first} ${it.second}" } + listOf(cleaned)).distinct().take(3)
+        for (q in neteaseQueries) {
+            if (!timeLeft()) break
+            if (consider(netease(q, duration))) return found.last()
+        }
+
+        // مفيش نتيجة عربي: نرجّع أحسن حاجة لقيناها (حتى لو بحروف لاتينية)
+        return found.firstOrNull { it.synced != null } ?: found.firstOrNull()
+    }
+
+    private fun lrclibQueries(pairs: Set<Pair<String, String>>, cleaned: String, uploader: String?): List<String> {
+        val out = LinkedHashSet<String>()
+        for ((a, t) in pairs) {
+            out.add("track_name=${enc(t)}&artist_name=${enc(a)}")
+            out.add("q=${enc("$a $t")}")
+        }
+        if (cleaned.isNotBlank()) out.add("q=${enc(cleaned)}")
+        if (uploader != null && cleaned.isNotBlank()) out.add("q=${enc("$uploader $cleaned")}")
+        return out.take(7)
+    }
+
+    private fun pickLrclib(arr: JSONArray, duration: Double): Result? {
         var best: JSONObject? = null
-        var bestDiff = Double.MAX_VALUE
+        var bestScore = Double.MAX_VALUE
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
             if (o.optBoolean("instrumental", false)) continue
@@ -81,9 +163,12 @@ object LyricsFetcher {
             val known = !duration.isNaN() && !d.isNaN()
             val diff = if (known) Math.abs(d - duration) else 0.0
             if (known && diff > 8.0) continue   // غالبًا أغنية تانية
-            if (diff < bestDiff) {
+            // الأفضلية للعربي بالحروف العربي، وبعدين الأقرب في المدة
+            val arabicBonus = if (isArabicText(o.str("plainLyrics") ?: o.str("syncedLyrics"))) -100.0 else 0.0
+            val score = diff + arabicBonus
+            if (score < bestScore) {
                 best = o
-                bestDiff = diff
+                bestScore = score
             }
         }
         val b = best ?: return null
@@ -92,19 +177,95 @@ object LyricsFetcher {
         return Result(plain, synced)
     }
 
+    /** بيرجّع أزواج (فنان، أغنية) من Deezer للأغاني اللي مدتها قريبة */
+    private fun deezerNames(queries: List<String>, duration: Double): List<Pair<String, String>> {
+        val out = LinkedHashSet<Pair<String, String>>()
+        for (q in queries.filter { it.isNotBlank() }.distinct().take(3)) {
+            val body = get("https://api.deezer.com/search?limit=5&q=${enc(q)}") ?: continue
+            try {
+                val data = JSONObject(body).optJSONArray("data") ?: continue
+                for (i in 0 until data.length()) {
+                    val o = data.optJSONObject(i) ?: continue
+                    val d = o.optDouble("duration", Double.NaN)
+                    if (!duration.isNaN() && !d.isNaN() && Math.abs(d - duration) > 8.0) continue
+                    val t = o.optString("title_short", "").ifBlank { o.optString("title", "") }.trim()
+                    val a = o.optJSONObject("artist")?.optString("name", "")?.trim().orEmpty()
+                    if (t.isNotBlank() && a.isNotBlank()) out.add(a to t)
+                    if (out.size >= 3) return out.toList()
+                }
+            } catch (_: Exception) {
+            }
+            if (out.isNotEmpty()) break
+        }
+        return out.toList()
+    }
+
+    private fun ovh(artist: String, track: String): Result? {
+        val body = get("https://api.lyrics.ovh/v1/${enc(artist).replace("+", "%20")}/${enc(track).replace("+", "%20")}") ?: return null
+        return try {
+            var l = JSONObject(body).str("lyrics") ?: return null
+            l = l.replace("\r\n", "\n").replace(Regex("""^Paroles de la chanson[^\n]*\n+"""), "").trim()
+            if (l.length < 40) null else Result(l, null)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun netease(query: String, duration: Double): Result? {
+        val hdr = mapOf("Referer" to "https://music.163.com")
+        val sb = get(
+            "https://music.163.com/api/search/get", hdr,
+            "s=${enc(query)}&type=1&offset=0&limit=5"
+        ) ?: return null
+        try {
+            val songs = JSONObject(sb).optJSONObject("result")?.optJSONArray("songs") ?: return null
+            for (i in 0 until songs.length()) {
+                val o = songs.optJSONObject(i) ?: continue
+                val d = o.optDouble("duration", Double.NaN) / 1000.0
+                if (duration.isNaN() || d.isNaN() || Math.abs(d - duration) > 5.0) continue
+                val id = o.optLong("id", 0)
+                if (id == 0L) continue
+                val lb = get("https://music.163.com/api/song/lyric?id=$id&lv=1&kv=1&tv=-1", hdr) ?: continue
+                val lrc = JSONObject(lb).optJSONObject("lrc")?.str("lyric") ?: continue
+                val clean = lrc.lines().filterNot {
+                    Regex("""^\[[\d:.]+]\s*(作词|作曲|编曲|制作|混音|Lyrics by|Composer)""").containsMatchIn(it)
+                }.joinToString("\n")
+                if (clean.count { it == '\n' } < 4) continue
+                val plain = stripTimestamps(clean).trim()
+                if (plain.length < 40) continue
+                return Result(plain, if (Regex("""\[\d+:\d+""").containsMatchIn(clean)) clean else null)
+            }
+        } catch (_: Exception) {
+        }
+        return null
+    }
+
     private fun stripTimestamps(s: String): String =
         s.replace(Regex("""^\[[^\]]*]\s*""", RegexOption.MULTILINE), "")
 
+    private fun cleanUploader(u: String): String =
+        u.replace(Regex("""(?i)\s*-\s*topic$|vevo$|\s*official(\s*channel)?$|\s*رسمي$"""), "").trim()
+
     fun cleanTitle(t: String): String {
         var s = t.substringBefore(" | ")
+        // نشيل التشكيل والتطويل
+        s = s.replace(Regex("""[\u064B-\u065F\u0670\u0640]"""), "")
         s = s.replace(Regex("""[\(\[\{][^\)\]\}]*[\)\]\}]"""), " ")
         s = s.replace(
             Regex(
-                """(?i)\b(official\s*(music\s*)?(video|audio)|lyric(s)?\s*video|lyrics?|audio|hd|hq|4k|mv|video\s*clip)\b"""
+                """(?i)\b(official\s*(music\s*)?(video|audio)|lyric(s)?\s*video|lyrics?|audio|hd|hq|4k|mv|video\s*clip|full\s*song|ft\.?|feat\.?|featuring)\b"""
             ),
             " "
         )
-        return s.replace(Regex("""\s+"""), " ").trim().trim('-', ' ')
+        // كلمات عربي شائعة في عناوين اليوتيوب
+        s = s.replace(
+            Regex(
+                """(فيديو\s*كليب|كليب\s*رسمي|الكليب\s*الرسمي|كليب|الفيديو\s*الرسمي|النسخة\s*الاصلية|النسخه\s*الاصليه|حصريا|حصريًا|بالكلمات|مع\s*الكلمات|كلمات|بدون\s*موسيقى|اغنية|أغنية|الاغنية|الأغنية)"""
+            ),
+            " "
+        )
+        s = s.replace(Regex("""[\"'“”«»]"""), " ")
+        return s.replace(Regex("""\s+"""), " ").trim().trim('-', ' ', '–', '—')
     }
 }
 
